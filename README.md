@@ -14,7 +14,7 @@
 ## 安装
 
 ```bash
-pip install xdeek_logger
+pip install xdeek-logger
 
 
 

@@ -13,13 +13,13 @@ with open("README.md", "r", encoding="utf-8") as fh:
 
 setup(
     name='xdeek_logger',
-    version='0.0.1',
+    version='0.0.2',
     author='gm.zhibo.wang',
     author_email='gm.zhibo.wang@gmail.com',
     description='An enhanced logger based on Loguru',
     long_description=long_description,
     long_description_content_type="text/markdown",
-    url='https://github.com/wang-zhibo/xdeek-logger',
+    url='https://github.com/wang-zhibo/xdeek_logger',
     packages=find_packages(),
     include_package_data=True,
     python_requires='>=3.6',
@@ -32,8 +32,8 @@ setup(
         'requests'
     ],
     project_urls={
-        "Bug Reports": "https://github.com/wang-zhibo/xdeek-logger/issues",
-        "Source": "https://github.com/wang-zhibo/xdeek-logger",
+        "Bug Reports": "https://github.com/wang-zhibo/xdeek_logger/issues",
+        "Source": "https://github.com/wang-zhibo/xdeek_logger",
     },
 )
 
