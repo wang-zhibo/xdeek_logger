@@ -12,8 +12,6 @@ if __name__ == '__main__':
     # log = MyLogger("test_log", remote_log_url=remote_log_url)
     log = MyLogger("test_log")
 
-    # 增加自定义日志级别
-    log.add_custom_level("CUSTOM_LEVEL", no=15, color="<magenta>", icon="🌟")
 
     @log.log_decorator("ZeroDivisionError occurred.")
     def test_zero_division_error(a, b):
