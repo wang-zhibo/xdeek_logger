@@ -104,8 +104,6 @@ logger.error("An error occurred.")
 logger.critical("Critical issue!")
 logger.trace("This is a trace message - only if Loguru TRACE level is enabled.")
 
-"""增加自定义日志级别"""
-logger.add_custom_level("CUSTOM_LEVEL", no=15, color="<magenta>", icon="🌟")
 logger.log("CUSTOM_LEVEL", "A special custom message.")
 
 ```
@@ -191,12 +189,6 @@ logger = MyLogger(
 #### 4. 如何在函数装饰器中抛出异常？
 - 在装饰器里捕获异常后，如果希望装饰器内不“吞掉”异常，可在 `except` 块里添加 `raise`，这样异常会继续向上传递。
 
-#### 5. 如何增加更多自定义日志级别？
-- 使用 `add_custom_level("AUDIT", no=21, color="<blue>", icon="👮")` 来添加；参数含义：
-  - `no`：数值等级（越大表示优先级越高），一定要与已有级别或其他自定义级别不同。
-  - `color`：日志打印时在终端中的配色。
-  - `icon`：Loguru 会在控制台打印该图标。
-
-#### 6. 如何在远程收集中添加鉴权信息？
+#### 5. 如何在远程收集中添加鉴权信息？
 - 在 `_send_to_remote` 方法里，可在 `headers` 中添加 `Authorization` token 或其他自定义请求头。
 

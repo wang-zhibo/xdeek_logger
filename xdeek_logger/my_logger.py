@@ -40,6 +40,7 @@ class MyLogger:
         retention='9 days',
         remote_log_url=None,
         max_workers=5,
+        work_type=False
     ):
         """
         初始化日志记录器。
@@ -51,6 +52,7 @@ class MyLogger:
             retention (str): 日志保留策略。
             remote_log_url (str, optional): 远程日志收集的URL。如果提供，将启用远程日志收集。
             max_workers (int): 线程池的最大工作线程数。
+            work_type (bool): False 测试环境
         """
         self.file_name = file_name
         self.log_dir = log_dir
@@ -68,6 +70,14 @@ class MyLogger:
                 request_id=self.request_id_var.get() or "no-request-id"
             )
         )
+        if work_type:
+            self.enqueue=False
+            self.diagnose=False
+            self.backtrace=False
+        else:
+            self.enqueue=True
+            self.diagnose=True
+            self.backtrace=True
 
         # 用于远程日志发送的线程池
         self._executor = ThreadPoolExecutor(max_workers=max_workers)
@@ -129,9 +139,9 @@ class MyLogger:
             retention=self.retention,
             compression="zip",
             encoding='utf-8',
-            enqueue=True,
-            diagnose=True,
-            backtrace=True,
+            enqueue=self.enqueue,
+            diagnose=self.diagnose,
+            backtrace=self.diagnose,
         )
         """
 
@@ -143,9 +153,9 @@ class MyLogger:
             retention=self.retention,
             compression="zip",
             encoding='utf-8',
-            enqueue=True,
-            diagnose=True,
-            backtrace=True,
+            enqueue=self.enqueue,
+            diagnose=self.diagnose,
+            backtrace=self.backtrace,
         )
 
         # 如果需要对全部级别动态分文件（如按照 {level}.log），可启用：
@@ -153,7 +163,7 @@ class MyLogger:
         #     self.get_log_path,
         #     format=custom_format,
         #     level="DEBUG",
-        #     enqueue=True
+        #     enqueue=self.enqueue
         # )
 
         # 远程日志收集
@@ -161,7 +171,7 @@ class MyLogger:
             self._configure_remote_logging()
 
         # 添加自定义日志级别（避免与 Loguru 预定义的冲突）
-        self.add_custom_level("CUSTOM_LEVEL", no=15, color="<magenta>", icon="🦉")
+        # self.add_custom_level("CUSTOM_LEVEL", no=15, color="<magenta>", icon="🦉")
 
         # 设置统一异常处理
         self.setup_exception_handler()
@@ -174,7 +184,7 @@ class MyLogger:
         self.logger.add(
             self.remote_sink,
             level="ERROR",
-            enqueue=True,
+            enqueue=self.enqueue,
         )
 
     def setup_exception_handler(self):
@@ -356,8 +366,6 @@ if __name__ == '__main__':
     remote_log_url = None  # "https://your-logging-endpoint.com/logs"
     log = MyLogger("test_log", remote_log_url=remote_log_url)
 
-    # 增加自定义日志级别
-    log.add_custom_level("CUSTOM_LEVEL", no=15, color="<magenta>", icon="🦉")
 
     @log.log_decorator("ZeroDivisionError occurred.")
     def test_zero_division_error(a, b):
