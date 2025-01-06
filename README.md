@@ -1,4 +1,4 @@
-# Enhanced Logger
+## Enhanced Logger
 
 这是一个基于 [Loguru](https://github.com/Delgan/loguru) 的扩展日志记录器，提供了一系列增强特性，包括：
 
@@ -12,7 +12,7 @@
 
 ---
 
-## 功能概述
+### 功能概述
 
 1. **自定义日志格式**  
    可自由配置字段，如时间、进程/线程 ID、日志级别、请求 ID、所在文件、函数、行号等。
@@ -44,7 +44,7 @@
 
 ---
 
-## 目录结构
+### 目录结构
 
 . ├── logs/ # 日志存放目录（默认） ├── my_logger.py # MyLogger 类源码 ├── README.md # 使用说明 └── requirements.txt # Python依赖（如有）
 
@@ -56,29 +56,32 @@ yaml
 ---
 
 
-## 安装
+### 安装
 
 ```bash
 pip install xdeek-logger
+```
 
 
-## 使用示例
+### 使用示例
     example/main.py
 
 
-## 导入并使用
+### 导入并使用
 
 ```
 from xdeek_logger import MyLogger
 
-# 初始化日志记录器
-# 可自定义:
-#   - 主日志文件名 (e.g., "app_log")
-#   - 日志目录 log_dir (默认 "logs")
-#   - 单个日志文件体积最大值 max_size (MB)
-#   - 日志保留策略 retention (e.g., "7 days")
-#   - 远程日志收集地址 remote_log_url (默认 None)
-#   - 线程池最大工作线程数 max_workers (默认 5)
+"""
+初始化日志记录器
+可自定义:
+  - 主日志文件名 (e.g., "app_log")
+  - 日志目录 log_dir (默认 "logs")
+  - 单个日志文件体积最大值 max_size (MB)
+  - 日志保留策略 retention (e.g., "7 days")
+  - 远程日志收集地址 remote_log_url (默认 None)
+  - 线程池最大工作线程数 max_workers (默认 5)
+"""
 logger = MyLogger(
     file_name="app_log",
     log_dir="logs",
@@ -90,10 +93,10 @@ logger = MyLogger(
 
 ```
 
-## 调用日志方法
+### 调用日志方法
 
 ```
-# 直接使用 Loguru 的常见日志方法
+"""直接使用 Loguru 的常见日志方法"""
 logger.info("This is an info message.")
 logger.debug("Debug details here.")
 logger.warning("Be cautious!")
@@ -101,13 +104,13 @@ logger.error("An error occurred.")
 logger.critical("Critical issue!")
 logger.trace("This is a trace message - only if Loguru TRACE level is enabled.")
 
-# 增加自定义日志级别
+"""增加自定义日志级别"""
 logger.add_custom_level("CUSTOM_LEVEL", no=15, color="<magenta>", icon="🌟")
 logger.log("CUSTOM_LEVEL", "A special custom message.")
 
 ```
 
-## 使用装饰器记录函数调用
+### 使用装饰器记录函数调用
 
 ```
 @logger.log_decorator("A division error occurred.")
@@ -115,7 +118,8 @@ def divide(a, b):
     return a / b
 
 try:
-    result = divide(10, 0)  # 将触发 ZeroDivisionError
+    result = divide(10, 0)  
+    """# 将触发 ZeroDivisionError"""
 except ZeroDivisionError:
     logger.exception("Handled ZeroDivisionError.")
 
@@ -124,7 +128,7 @@ except ZeroDivisionError:
 - 如果出现异常，则记录 traceback 并打印自定义提示信息。
 
 
-## 记录异步函数调用
+### 记录异步函数调用
 
 ```
 import asyncio
@@ -142,21 +146,21 @@ asyncio.run(main())
 
 ```
 
-## 设置和重置 request_id
+### 设置和重置 request_id
 
 ```
-# 设置某个上下文的 request_id
+"""# 设置某个上下文的 request_id"""
 token = logger.request_id_var.set("12345")
 
-# ...执行与你的请求相关的操作，所有日志都带上 request_id=12345
+"""# ...执行与你的请求相关的操作，所有日志都带上 request_id=12345"""
 
-# 结束后重置
+"""# 结束后重置"""
 logger.request_id_var.reset(token)
 
 ``` 
 
 
-## 远程日志收集
+### 远程日志收集
 
 - 在初始化 MyLogger 时，指定 remote_log_url 即可启用远程日志上报功能：
 
@@ -172,31 +176,27 @@ logger = MyLogger(
 
 
 
+### 常见问题
 
-
-
-
-## 常见问题
-
-### 1. 如何关闭日志多文件策略？
+#### 1. 如何关闭日志多文件策略？
 - 如果仅需要一个主日志文件，可去掉或注释掉 `_get_level_log_path()` 相关的 `logger.add(...)` 调用。
 - 如果希望“只按级别分文件、不需要主日志文件”，可以删除对应的添加主日志文件的 `add` 调用。
 
-### 2. 如何自定义轮转策略（按天、按小时等）？
+#### 2. 如何自定义轮转策略（按天、按小时等）？
 - 将 `rotation=f"{self.max_size} MB"` 改为 `rotation="1 day"`、`rotation="00:00"` 等，即可使用 Loguru 的时间轮转功能。
 
-### 3. 如何自定义日志输出格式？
+#### 3. 如何自定义日志输出格式？
 - 修改 `custom_format` 变量，或在 `logger.add()` 中使用你喜欢的格式，如 **JSON** 格式、单行简洁格式等。
 
-### 4. 如何在函数装饰器中抛出异常？
+#### 4. 如何在函数装饰器中抛出异常？
 - 在装饰器里捕获异常后，如果希望装饰器内不“吞掉”异常，可在 `except` 块里添加 `raise`，这样异常会继续向上传递。
 
-### 5. 如何增加更多自定义日志级别？
+#### 5. 如何增加更多自定义日志级别？
 - 使用 `add_custom_level("AUDIT", no=21, color="<blue>", icon="👮")` 来添加；参数含义：
   - `no`：数值等级（越大表示优先级越高），一定要与已有级别或其他自定义级别不同。
   - `color`：日志打印时在终端中的配色。
   - `icon`：Loguru 会在控制台打印该图标。
 
-### 6. 如何在远程收集中添加鉴权信息？
+#### 6. 如何在远程收集中添加鉴权信息？
 - 在 `_send_to_remote` 方法里，可在 `headers` 中添加 `Authorization` token 或其他自定义请求头。
 
