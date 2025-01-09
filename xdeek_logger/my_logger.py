@@ -278,7 +278,7 @@ class MyLogger:
         """
         return getattr(self.logger, level)
 
-    def log_decorator(self, msg="An exception occurred. Please check the logs."):
+    def log_decorator(self, msg="快看, 异常了, 别唧唧哇哇, 快排查"):
         """
         日志装饰器，自动判断被装饰函数是同步还是异步，
         记录函数名称、参数、返回值、运行时间和异常信息。
