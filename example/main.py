@@ -13,7 +13,7 @@ if __name__ == '__main__':
     log = MyLogger("test_log")
 
 
-    @log.log_decorator("ZeroDivisionError occurred.")
+    @log.log_decorator("快看, 异常了, 别唧唧哇哇, 快排查")
     def test_zero_division_error(a, b):
         return a / b
 

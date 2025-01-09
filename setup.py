@@ -28,7 +28,7 @@ setup(
         "Operating System :: OS Independent",
     ],
     install_requires=[
-        'loguru==0.7.2',
+        'loguru==0.7.3',
         'requests'
     ],
     project_urls={
