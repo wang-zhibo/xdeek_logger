@@ -88,7 +88,8 @@ logger = MyLogger(
     max_size=50,
     retention="7 days",
     remote_log_url=None,
-    max_workers=5
+    max_workers=5,
+    language='zh'       # 新增：语言选项，默认为中文
 )
 
 ```

@@ -4,7 +4,7 @@
 # Author: zhibo.wang
 # E-mail: gm.zhibo.wang@gmail.com
 # Date  : 2025-01-03
-# Desc  : Enhanced Logger with Loguru (with async support) + Language Option
+# Desc  : Enhanced Logger with Loguru (with async support)
 
 import os
 import sys
@@ -30,38 +30,7 @@ class MyLogger:
     - 装饰器用于记录函数调用和执行时间，支持同步/异步函数
     - 自定义日志级别（避免与 Loguru 预定义的冲突）
     - 统一异常处理
-
-    新增：
-    - 可指定语言（中文/英文），默认中文
     """
-
-    # 在此定义常用提示语的多语言版本
-    _LANG_MAP = {
-        'zh': {
-            'UNHANDLED_EXCEPTION': "未处理的异常",
-            'START_FUNCTION_CALL': "----------- 开始函数调用 -----------",
-            'END_FUNCTION_CALL': "----------- 结束函数调用 -----------",
-            'START_ASYNC_FUNCTION_CALL': "----------- 开始异步函数调用 -----------",
-            'END_ASYNC_FUNCTION_CALL': "----------- 结束异步函数调用 -----------",
-            'CALLING_FUNCTION': '调用函数 "{func}"，参数: args={args}; kwargs={kwargs}',
-            'CALLING_ASYNC_FUNCTION': '调用异步函数 "{func}"，参数: args={args}; kwargs={kwargs}',
-            'FUNCTION_RETURNED': '函数 "{func}" 返回: {result} (耗时: {duration:.4f}s)',
-            'ASYNC_FUNCTION_RETURNED': '异步函数 "{func}" 返回: {result} (耗时: {duration:.4f}s)',
-            'FAILED_REMOTE': "发送日志到远程服务器失败: {error}",
-        },
-        'en': {
-            'UNHANDLED_EXCEPTION': "Unhandled exception",
-            'START_FUNCTION_CALL': "----------- Start Function Call -----------",
-            'END_FUNCTION_CALL': "----------- End Function Call -----------",
-            'START_ASYNC_FUNCTION_CALL': "----------- Start Async Function Call -----------",
-            'END_ASYNC_FUNCTION_CALL': "----------- End Async Function Call -----------",
-            'CALLING_FUNCTION': 'Calling function "{func}" with args={args}; kwargs={kwargs}',
-            'CALLING_ASYNC_FUNCTION': 'Calling async function "{func}" with args={args}; kwargs={kwargs}',
-            'FUNCTION_RETURNED': 'Function "{func}" returned: {result} (Duration: {duration:.4f}s)',
-            'ASYNC_FUNCTION_RETURNED': 'Async function "{func}" returned: {result} (Duration: {duration:.4f}s)',
-            'FAILED_REMOTE': "Failed to send log to remote server: {error}",
-        }
-    }
 
     def __init__(
         self,
@@ -71,8 +40,7 @@ class MyLogger:
         retention='9 days',
         remote_log_url=None,
         max_workers=5,
-        work_type=False,
-        language='zh'       # 新增：语言选项，默认为中文
+        work_type=False
     ):
         """
         初始化日志记录器。
@@ -85,7 +53,6 @@ class MyLogger:
             remote_log_url (str, optional): 远程日志收集的URL。如果提供，将启用远程日志收集。
             max_workers (int): 线程池的最大工作线程数。
             work_type (bool): False 测试环境
-            language (str): 'zh' 或 'en'，表示日志输出语言，默认为中文。
         """
         self.file_name = file_name
         self.log_dir = log_dir
@@ -93,13 +60,11 @@ class MyLogger:
         self.retention = retention
         self.remote_log_url = remote_log_url
 
-        # 语言选项
-        self.language = language if language in ('zh', 'en') else 'zh'
-
         # 定义上下文变量，用于存储 request_id
         self.request_id_var = ContextVar("request_id", default="no-request-id")
 
         # 使用 patch 确保每条日志记录都包含 'request_id'
+        # 同时可添加其他 context 信息，如用户ID等
         self.logger = logger.patch(
             lambda record: record["extra"].update(
                 request_id=self.request_id_var.get() or "no-request-id"
@@ -120,14 +85,6 @@ class MyLogger:
         # 初始化 Logger 配置
         self.configure_logger()
 
-    def _msg(self, key, **kwargs):
-        """
-        根据当前语言，从 _LANG_MAP 中获取对应文本。
-        可使用 kwargs 替换字符串中的占位符。
-        """
-        text = self._LANG_MAP[self.language].get(key, "")
-        return text.format(**kwargs)
-
     def configure_logger(self):
         """
         配置 Loguru 日志记录器：控制台输出、文件输出、远程日志收集、自定义日志级别。
@@ -137,19 +94,9 @@ class MyLogger:
 
         # 定义日志格式：可根据需要自由增减字段
         # 包含时间、进程 ID、线程 ID、日志级别、request_id、调用位置等
-        # 目前去除进程 ID、线程 ID
-        """
         custom_format = (
             "<green>{time:YYYY-MM-DD HH:mm:ss}</green> | "
             "<cyan>PID:{process}</cyan>/<cyan>TID:{thread}</cyan> | "
-            "<level>{level: <8}</level> | "
-            "ReqID:{extra[request_id]} | "
-            "<cyan>{name}</cyan>:<cyan>{function}</cyan>:<cyan>{line}</cyan> - "
-            "<level>{message}</level>"
-        )
-        """
-        custom_format = (
-            "<green>{time:YYYY-MM-DD HH:mm:ss}</green> | "
             "<level>{level: <8}</level> | "
             "ReqID:{extra[request_id]} | "
             "<cyan>{name}</cyan>:<cyan>{function}</cyan>:<cyan>{line}</cyan> - "
@@ -181,7 +128,23 @@ class MyLogger:
             backtrace=True,
         )
 
-        # 仅示例演示：为 ERROR 级别单独输出到文件
+        # 为不同级别的日志添加单独文件，例如 DEBUG、INFO、WARNING、ERROR 等
+        # 这里给出 DEBUG 和 ERROR 两个级别示例，可根据需求自行添加
+        """
+        self.logger.add(
+            self._get_level_log_path("debug"),
+            format=custom_format,
+            level="DEBUG",
+            rotation=f"{self.max_size} MB",
+            retention=self.retention,
+            compression="zip",
+            encoding='utf-8',
+            enqueue=self.enqueue,
+            diagnose=self.diagnose,
+            backtrace=self.diagnose,
+        )
+        """
+
         self.logger.add(
             self._get_level_log_path("error"),
             format=custom_format,
@@ -195,9 +158,20 @@ class MyLogger:
             backtrace=self.backtrace,
         )
 
+        # 如果需要对全部级别动态分文件（如按照 {level}.log），可启用：
+        # self.logger.add(
+        #     self.get_log_path,
+        #     format=custom_format,
+        #     level="DEBUG",
+        #     enqueue=self.enqueue
+        # )
+
         # 远程日志收集
         if self.remote_log_url:
             self._configure_remote_logging()
+
+        # 添加自定义日志级别（避免与 Loguru 预定义的冲突）
+        # self.add_custom_level("CUSTOM_LEVEL", no=15, color="<magenta>", icon="🦉")
 
         # 设置统一异常处理
         self.setup_exception_handler()
@@ -223,7 +197,7 @@ class MyLogger:
                 sys.__excepthook__(exc_type, exc_value, exc_traceback)
                 return
             self.logger.opt(exception=True).error(
-                self._msg('UNHANDLED_EXCEPTION'),
+                "未处理的异常",
                 exc_info=(exc_type, exc_value, exc_traceback)
             )
 
@@ -237,7 +211,7 @@ class MyLogger:
 
     def get_log_path(self, message):
         """
-        如果需要将所有日志按照级别分文件时，可使用此方法。
+        根据日志级别返回日志文件路径（如果需要将所有日志按照级别分文件时启用此方法）。
         """
         log_level = message.record["level"].name.lower()
         log_file = f"{log_level}.log"
@@ -266,6 +240,7 @@ class MyLogger:
         headers = {"Content-Type": "application/json"}
 
         try:
+            # 这里可以考虑在实际生产环境中使用 retry 逻辑（例如 tenacity 库）
             response = requests.post(
                 self.remote_log_url,
                 headers=headers,
@@ -275,7 +250,7 @@ class MyLogger:
             response.raise_for_status()
         except requests.RequestException as e:
             # 如果无法发送到远程服务器，仅做警告记录
-            self.logger.warning(self._msg('FAILED_REMOTE', error=e))
+            self.logger.warning(f"Failed to send log to remote server: {e}")
 
     def add_custom_level(self, level_name, no, color, icon):
         """
@@ -303,13 +278,13 @@ class MyLogger:
         """
         return getattr(self.logger, level)
 
-    def log_decorator(self, msg="快看, 异常了, 别唧唧哇哇, 快排查!"):
+    def log_decorator(self, msg="快看, 异常了, 别唧唧哇哇, 快排查"):
         """
         日志装饰器，自动判断被装饰函数是同步还是异步，
         记录函数名称、参数、返回值、运行时间和异常信息。
 
         Args:
-            msg (str): 发生异常时记录的自定义提示信息（此处保留原用法，不做多语言处理）。
+            msg (str): 发生异常时记录的自定义提示信息。
         """
 
         def decorator(func):
@@ -326,7 +301,7 @@ class MyLogger:
                         return result
                     except Exception:
                         self.logger.exception(f'Async function "{func.__name__}": {msg}')
-                        self.logger.info(self._msg('END_ASYNC_FUNCTION_CALL'))
+                        self.logger.info('----------- End Async Function Call -----------')
                         # 如果想在装饰器内抑制异常，可不再抛出
                         # raise
                 return async_wrapper
@@ -343,7 +318,7 @@ class MyLogger:
                         return result
                     except Exception:
                         self.logger.exception(f'Function "{func.__name__}": {msg}')
-                        self.logger.info(self._msg('END_FUNCTION_CALL'))
+                        self.logger.info('----------- End Function Call -----------')
                         # 如果想在装饰器内抑制异常，可不再抛出
                         # raise
                 return sync_wrapper
@@ -354,15 +329,11 @@ class MyLogger:
         记录函数调用开始的公共逻辑。
         """
         if is_async:
-            self.logger.info(self._msg('START_ASYNC_FUNCTION_CALL'))
-            self.logger.info(
-                self._msg('CALLING_ASYNC_FUNCTION', func=func_name, args=args, kwargs=kwargs)
-            )
+            self.logger.info('----------- Start Async Function Call -----------')
+            self.logger.info(f'Calling async function "{func_name}" with args: {args}; kwargs: {kwargs}')
         else:
-            self.logger.info(self._msg('START_FUNCTION_CALL'))
-            self.logger.info(
-                self._msg('CALLING_FUNCTION', func=func_name, args=args, kwargs=kwargs)
-            )
+            self.logger.info('----------- Start Function Call -----------')
+            self.logger.info(f'Calling function "{func_name}" with args: {args}; kwargs: {kwargs}')
 
     def _log_end(self, func_name, result, duration, is_async=False):
         """
@@ -370,17 +341,18 @@ class MyLogger:
         """
         if is_async:
             self.logger.info(
-                self._msg('ASYNC_FUNCTION_RETURNED', func=func_name, result=result, duration=duration)
+                f'Async function "{func_name}" returned: {result} (Duration: {duration:.4f}s)'
             )
-            self.logger.info(self._msg('END_ASYNC_FUNCTION_CALL'))
+            self.logger.info('----------- End Async Function Call -----------')
         else:
             self.logger.info(
-                self._msg('FUNCTION_RETURNED', func=func_name, result=result, duration=duration)
+                f'Function "{func_name}" returned: {result} (Duration: {duration:.4f}s)'
             )
-            self.logger.info(self._msg('END_FUNCTION_CALL'))
+            self.logger.info('----------- End Function Call -----------')
 
 
-# """
+
+"""
 # ==========================
 # 以下为使用示例
 # ==========================
@@ -390,10 +362,10 @@ if __name__ == '__main__':
     import asyncio
 
     # 初始化日志记录器
-    # - language='zh' 输出中文
-    # - language='en' 输出英文
+    # 替换为真实的远程日志收集URL，或者设置为 None
     remote_log_url = None  # "https://your-logging-endpoint.com/logs"
-    log = MyLogger("test_log", remote_log_url=remote_log_url, language='zh')
+    log = MyLogger("test_log", remote_log_url=remote_log_url)
+
 
     @log.log_decorator("ZeroDivisionError occurred.")
     def test_zero_division_error(a, b):
@@ -431,7 +403,6 @@ if __name__ == '__main__':
             log.info(f"test_zero_division_error result: {result}")
         except ZeroDivisionError:
             log.exception("Caught a ZeroDivisionError.")
-        result = test_zero_division_error(1, 1)
 
         # 测试另一个示例函数
         try:
@@ -453,5 +424,6 @@ if __name__ == '__main__':
     finally:
         # 重置 request_id
         log.request_id_var.reset(token)
-        log.info("All done.")
-# """
+        log.info("test...")
+"""
+

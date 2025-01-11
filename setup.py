@@ -13,7 +13,7 @@ with open("README.md", "r", encoding="utf-8") as fh:
 
 setup(
     name='xdeek_logger',
-    version='0.0.4',
+    version='0.0.5',
     author='gm.zhibo.wang',
     author_email='gm.zhibo.wang@gmail.com',
     description='An enhanced logger based on Loguru',
