@@ -67,10 +67,10 @@ class MyLogger:
         self,
         file_name,
         log_dir='logs',
-        max_size=36,        # 单位：MB
-        retention='9 days',
+        max_size=14,        # 单位：MB
+        retention='7 days',
         remote_log_url=None,
-        max_workers=5,
+        max_workers=3,
         work_type=False,
         language='zh'       # 新增：语言选项，默认为中文
     ):
