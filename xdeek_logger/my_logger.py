@@ -12,6 +12,8 @@ import inspect
 import requests
 import traceback
 
+from typing import Optional
+
 from functools import wraps
 from time import perf_counter
 from contextvars import ContextVar
@@ -65,15 +67,15 @@ class MyLogger:
 
     def __init__(
         self,
-        file_name,
-        log_dir='logs',
-        max_size=14,        # 单位：MB
-        retention='7 days',
-        remote_log_url=None,
-        max_workers=3,
-        work_type=False,
-        language='zh'       # 新增：语言选项，默认为中文
-    ):
+        file_name: str,
+        log_dir: str = 'logs',
+        max_size: int = 14,        # 单位：MB
+        retention: str = '7 days',
+        remote_log_url: Optional[str] = None,
+        max_workers: int = 3,
+        work_type: bool = False,
+        language: str = 'zh'       # 新增：语言选项，默认为中文
+    ) -> None:
         """
         初始化日志记录器。
 
@@ -120,7 +122,16 @@ class MyLogger:
         # 初始化 Logger 配置
         self.configure_logger()
 
-    def _msg(self, key, **kwargs):
+    def _msg(self, key: str, **kwargs) -> str:
+        """Get localized message by key.
+        
+        Args:
+            key: Message key from _LANG_MAP
+            **kwargs: Format arguments for the message
+            
+        Returns:
+            Formatted message string
+        """
         """
         根据当前语言，从 _LANG_MAP 中获取对应文本。
         可使用 kwargs 替换字符串中的占位符。
@@ -128,7 +139,13 @@ class MyLogger:
         text = self._LANG_MAP[self.language].get(key, "")
         return text.format(**kwargs)
 
-    def configure_logger(self):
+    def configure_logger(self) -> None:
+        """Configure logger with console, file and remote handlers.
+        
+        Raises:
+            OSError: If log directory cannot be created
+            ValueError: If invalid configuration values are provided
+        """
         """
         配置 Loguru 日志记录器：控制台输出、文件输出、远程日志收集、自定义日志级别。
         """
@@ -165,7 +182,11 @@ class MyLogger:
         )
 
         # 确保日志目录存在
-        os.makedirs(self.log_dir, exist_ok=True)
+        try:
+            os.makedirs(self.log_dir, exist_ok=True)
+        except OSError as e:
+            self.logger.error(f"Failed to create log directory: {e}")
+            raise
 
         # 添加一个主日志文件（带轮转和保留策略），记录所有级别日志
         self.logger.add(
@@ -249,7 +270,15 @@ class MyLogger:
         """
         self._executor.submit(self._send_to_remote, message)
 
-    def _send_to_remote(self, message):
+    def _send_to_remote(self, message) -> None:
+        """Send log message to remote server with retry logic.
+        
+        Args:
+            message: Log message to send
+            
+        Returns:
+            None
+        """
         """
         线程池中实际执行的远程日志发送逻辑。
         """
@@ -265,17 +294,26 @@ class MyLogger:
         }
         headers = {"Content-Type": "application/json"}
 
-        try:
-            response = requests.post(
-                self.remote_log_url,
-                headers=headers,
-                json=payload,
-                timeout=5
-            )
-            response.raise_for_status()
-        except requests.RequestException as e:
-            # 如果无法发送到远程服务器，仅做警告记录
-            self.logger.warning(self._msg('FAILED_REMOTE', error=e))
+        max_retries = 3
+        retry_delay = 1  # seconds
+        
+        for attempt in range(max_retries):
+            try:
+                response = requests.post(
+                    self.remote_log_url,
+                    headers=headers,
+                    json=payload,
+                    timeout=5
+                )
+                response.raise_for_status()
+                return
+            except requests.RequestException as e:
+                if attempt == max_retries - 1:  # Last attempt
+                    self.logger.warning(
+                        self._msg('FAILED_REMOTE', error=f"Final attempt failed: {e}")
+                    )
+                else:
+                    time.sleep(retry_delay * (attempt + 1))
 
     def add_custom_level(self, level_name, no, color, icon):
         """
@@ -303,18 +341,20 @@ class MyLogger:
         """
         return getattr(self.logger, level)
 
-    def log_decorator(self, msg="快看, 异常了, 别唧唧哇哇, 快排查!"):
+    def log_decorator(self, msg: Optional[str] = None, level: str = "ERROR", trace: bool = True):
         """
-        日志装饰器，自动判断被装饰函数是同步还是异步，
-        记录函数名称、参数、返回值、运行时间和异常信息。
+        增强版日志装饰器，支持自定义日志级别和跟踪配置
 
         Args:
-            msg (str): 发生异常时记录的自定义提示信息（此处保留原用法，不做多语言处理）。
+            msg (str): 支持多语言的异常提示信息key（使用_LANG_MAP中的键）
+            level (str): 记录异常的日志级别（默认ERROR）
+            trace (bool): 是否记录完整堆栈跟踪（默认True）
         """
-
         def decorator(func):
+            _msg_key = msg or 'UNHANDLED_EXCEPTION'
+            log_level = level.upper()
+
             if inspect.iscoroutinefunction(func):
-                # 异步函数
                 @wraps(func)
                 async def async_wrapper(*args, **kwargs):
                     self._log_start(func.__name__, args, kwargs, is_async=True)
@@ -324,14 +364,13 @@ class MyLogger:
                         duration = perf_counter() - start_time
                         self._log_end(func.__name__, result, duration, is_async=True)
                         return result
-                    except Exception:
-                        self.logger.exception(f'Async function "{func.__name__}": {msg}')
-                        self.logger.info(self._msg('END_ASYNC_FUNCTION_CALL'))
-                        # 如果想在装饰器内抑制异常，可不再抛出
-                        # raise
+                    except Exception as e:
+                        self._log_exception(func.__name__, e, _msg_key, log_level, trace, is_async=True)
+                        if trace:
+                            raise
+                        return None
                 return async_wrapper
             else:
-                # 同步函数
                 @wraps(func)
                 def sync_wrapper(*args, **kwargs):
                     self._log_start(func.__name__, args, kwargs, is_async=False)
@@ -341,13 +380,30 @@ class MyLogger:
                         duration = perf_counter() - start_time
                         self._log_end(func.__name__, result, duration, is_async=False)
                         return result
-                    except Exception:
-                        self.logger.exception(f'Function "{func.__name__}": {msg}')
-                        self.logger.info(self._msg('END_FUNCTION_CALL'))
-                        # 如果想在装饰器内抑制异常，可不再抛出
-                        # raise
+                    except Exception as e:
+                        self._log_exception(func.__name__, e, _msg_key, log_level, trace, is_async=False)
+                        if trace:
+                            raise
+                        return None
                 return sync_wrapper
         return decorator
+
+    def _log_exception(self, func_name: str, error: Exception, msg_key: str,
+                     level: str, trace: bool, is_async: bool):
+        """统一的异常记录处理"""
+        log_method = getattr(self.logger, level.lower(), self.logger.error)
+        error_msg = self._msg(msg_key) + f" [{type(error).__name__}]"
+
+        if trace:
+            log_method = self.logger.exception
+            log_method(error_msg)
+        else:
+            log_method(f"{error_msg}: {str(error)}")
+
+        if is_async:
+            self.logger.info(self._msg('END_ASYNC_FUNCTION_CALL'))
+        else:
+            self.logger.info(self._msg('END_FUNCTION_CALL'))
 
     def _log_start(self, func_name, args, kwargs, is_async=False):
         """
@@ -380,7 +436,7 @@ class MyLogger:
             self.logger.info(self._msg('END_FUNCTION_CALL'))
 
 
-# """
+"""
 # ==========================
 # 以下为使用示例
 # ==========================
@@ -454,4 +510,4 @@ if __name__ == '__main__':
         # 重置 request_id
         log.request_id_var.reset(token)
         log.info("All done.")
-# """
+"""
