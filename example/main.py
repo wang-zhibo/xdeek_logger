@@ -5,70 +5,117 @@ if __name__ == '__main__':
     import time
     import json
     import asyncio
+    import random
 
-    # 初始化日志记录器
-    # 替换为真实的远程日志收集URL，或者设置为 None
-    remote_log_url = "https://your-logging-endpoint.com/logs"
-    # log = MyLogger("test_log", remote_log_url=remote_log_url)
-    log = MyLogger("test_log")
+    # 自定义日志格式
+    custom_format = (
+        "<green>{time:YYYY-MM-DD HH:mm:ss}</green> | "
+        "<level>{level: <8}</level> | "
+        "ReqID:{extra[request_id]} | "
+        "<cyan>{name}</cyan>:<cyan>{function}</cyan>:<cyan>{line}</cyan> - "
+        "<magenta>{process}</magenta> - "
+        "<level>{message}</level>"
+    )
 
-    @log.log_decorator("快看, 异常了, 别唧唧哇哇, 快排查")
+    # 初始化日志记录器，使用新功能
+    log = MyLogger(
+        "test_log",
+        rotation_time="1 day",           # 每天轮转
+        custom_format=custom_format,     # 自定义格式
+        filter_level="DEBUG",            # 日志级别
+        compression="zip",               # 压缩格式
+        file_pattern="{time:YYYY-MM-DD}", # 文件命名模式
+        enable_stats=True,               # 启用统计
+        categories=["api", "db", "ui"]   # 日志分类
+    )
+
+    # 添加自定义日志级别
+    log.add_custom_level("IMPORTANT", no=25, color="<yellow>", icon="⚠️")
+
+    @log.log_decorator("除零错误", level="ERROR")
     def test_zero_division_error(a, b):
         return a / b
 
-    @log.log_decorator("JSONDecodeError occurred.")
+    @log.log_decorator("JSON解析错误", level="WARNING")
     def test_error():
-        json.loads("asdasd")
+        json.loads("invalid_json")
 
-    @log.log_decorator("Function execution took too long.")
+    @log.log_decorator("耗时操作", level="INFO", trace=False)
     def compute_something_sync():
         time.sleep(1)
-        return "Sync computation completed"
+        return "同步计算完成"
 
-    @log.log_decorator("Async function execution took too long.")
+    @log.log_decorator("异步耗时操作")
     async def compute_something_async():
         await asyncio.sleep(1)
-        return "Async computation completed"
+        return "异步计算完成"
 
-    # 设置 request_id
-    token = log.request_id_var.set("12345")
+    @log.log_decorator("生成随机数", level="INFO", trace=False)
+    def generate_random_number(min_val=1, max_val=100):
+        return random.randint(min_val, max_val)
+
+    # 设置请求ID
+    token = log.request_id_var.set("REQ-12345")
 
     try:
-        # 日志示例
-        log.info('This is an info log.')
-        log.debug('This is a debug log.')
-        log.warning('This is a warning log.')
-        log.error('This is an error log.')
-        log.critical('This is a critical log.')
-        log.trace('This is a TRACE level log.')  # Loguru预定义的TRACE级别
+        # 基本日志测试
+        log.info('这是一条信息日志')
+        log.debug('这是一条调试日志')
+        log.warning('这是一条警告日志')
+        log.error('这是一条错误日志')
+        log.critical('这是一条严重错误日志')
+        
+        # 使用自定义日志级别
+        log.log("IMPORTANT", "这是一条重要日志消息")
+        
+        # 使用标签功能
+        log.log_with_tag("INFO", "这是带标签的日志", "FEATURE")
+        log.log_with_tag("WARNING", "这是带标签的警告", "DEPRECATED")
+        
+        # 使用分类功能
+        log.log_with_category("INFO", "数据库连接成功", "db")
+        log.log_with_category("ERROR", "API请求失败", "api")
+        log.log_with_category("DEBUG", "UI组件渲染", "ui")
 
-        # 测试同步函数
+        # 测试异常处理
         try:
             result = test_zero_division_error(1, 0)
-            log.info(f"test_zero_division_error result: {result}")
         except ZeroDivisionError:
-            log.exception("Caught a ZeroDivisionError.")
+            log.exception("捕获到除零错误")
 
-        # 测试另一个示例函数
         try:
             result = test_error()
         except json.JSONDecodeError:
-            log.exception("Caught a JSONDecodeError.")
+            log.exception("捕获到JSON解析错误")
 
         # 测试同步函数
         result = compute_something_sync()
-        log.info(f"compute_something_sync result: {result}")
+        log.info(f"同步计算结果: {result}")
+        
+        # 测试随机数生成
+        for _ in range(3):
+            num = generate_random_number(1, 1000)
+            log.info(f"生成的随机数: {num}")
 
         # 测试异步函数
         async def main():
+            # 单个异步任务
             result = await compute_something_async()
-            log.info(f"compute_something_async result: {result}")
+            log.info(f"异步计算结果: {result}")
+            
+            # 多个并发异步任务
+            tasks = [compute_something_async() for _ in range(3)]
+            results = await asyncio.gather(*tasks)
+            log.info(f"多任务异步结果: {results}")
 
         asyncio.run(main())
+        
+        # 输出日志统计
+        print("\n" + log.get_stats())
 
     finally:
-        # 重置 request_id
+        # 重置请求ID
         log.request_id_var.reset(token)
-        log.info("test...")
+        log.info("测试完成")
 
 

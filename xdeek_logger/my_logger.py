@@ -35,36 +35,28 @@ class MyLogger:
 
     新增：
     - 可指定语言（中文/英文），默认中文
+    - 支持按时间轮转日志
+    - 支持自定义日志格式
+    - 支持日志级别过滤
+    - 支持自定义压缩格式
+    - 支持自定义文件命名模式
     """
 
-    # 在此定义常用提示语的多语言版本
+    # 在 _LANG_MAP 中添加新的语言项
     _LANG_MAP = {
         'zh': {
-            'UNHANDLED_EXCEPTION': "未处理的异常",
-            'START_FUNCTION_CALL': "----------- 开始函数调用 -----------",
-            'END_FUNCTION_CALL': "----------- 结束函数调用 -----------",
-            'START_ASYNC_FUNCTION_CALL': "----------- 开始异步函数调用 -----------",
-            'END_ASYNC_FUNCTION_CALL': "----------- 结束异步函数调用 -----------",
-            'CALLING_FUNCTION': '调用函数 "{func}"，参数: args={args}; kwargs={kwargs}',
-            'CALLING_ASYNC_FUNCTION': '调用异步函数 "{func}"，参数: args={args}; kwargs={kwargs}',
-            'FUNCTION_RETURNED': '函数 "{func}" 返回: {result} (耗时: {duration:.4f}s)',
-            'ASYNC_FUNCTION_RETURNED': '异步函数 "{func}" 返回: {result} (耗时: {duration:.4f}s)',
-            'FAILED_REMOTE': "发送日志到远程服务器失败: {error}",
+            'LOG_STATS': "日志统计: 总计 {total} 条, 错误 {error} 条, 警告 {warning} 条, 信息 {info} 条",
+            'LOG_TAGGED': "[{tag}] {message}",
+            'LOG_CATEGORY': "分类: {category} - {message}",
         },
         'en': {
-            'UNHANDLED_EXCEPTION': "Unhandled exception",
-            'START_FUNCTION_CALL': "----------- Start Function Call -----------",
-            'END_FUNCTION_CALL': "----------- End Function Call -----------",
-            'START_ASYNC_FUNCTION_CALL': "----------- Start Async Function Call -----------",
-            'END_ASYNC_FUNCTION_CALL': "----------- End Async Function Call -----------",
-            'CALLING_FUNCTION': 'Calling function "{func}" with args={args}; kwargs={kwargs}',
-            'CALLING_ASYNC_FUNCTION': 'Calling async function "{func}" with args={args}; kwargs={kwargs}',
-            'FUNCTION_RETURNED': 'Function "{func}" returned: {result} (Duration: {duration:.4f}s)',
-            'ASYNC_FUNCTION_RETURNED': 'Async function "{func}" returned: {result} (Duration: {duration:.4f}s)',
-            'FAILED_REMOTE': "Failed to send log to remote server: {error}",
+            'LOG_STATS': "Log statistics: Total {total}, Errors {error}, Warnings {warning}, Info {info}",
+            'LOG_TAGGED': "[{tag}] {message}",
+            'LOG_CATEGORY': "Category: {category} - {message}",
         }
     }
 
+    # 在 __init__ 方法中添加新的参数
     def __init__(
         self,
         file_name: str,
@@ -74,7 +66,14 @@ class MyLogger:
         remote_log_url: Optional[str] = None,
         max_workers: int = 3,
         work_type: bool = False,
-        language: str = 'zh'       # 新增：语言选项，默认为中文
+        language: str = 'zh',      # 语言选项，默认为中文
+        rotation_time: Optional[str] = None,  # 新增：按时间轮转，如 "1 day", "1 week"
+        custom_format: Optional[str] = None,  # 新增：自定义日志格式
+        filter_level: str = "DEBUG",  # 新增：日志过滤级别
+        compression: str = "zip",   # 新增：压缩格式，支持 zip, gz, tar
+        file_pattern: str = "{time:YYYY-MM-DD}",  # 新增：文件命名模式
+        enable_stats: bool = False,  # 新增：是否启用日志统计
+        categories: Optional[list] = None,  # 新增：日志分类列表
     ) -> None:
         """
         初始化日志记录器。
@@ -173,11 +172,14 @@ class MyLogger:
             "<level>{message}</level>"
         )
 
+        # 使用自定义格式或默认格式
+        log_format = self.custom_format or custom_format
+
         # 添加控制台处理器
         self.logger.add(
             sys.stdout,
-            format=custom_format,
-            level="DEBUG",      # 控制台一般是 DEBUG 或更高
+            format=log_format,
+            level=self.filter_level,
             enqueue=True,
         )
 
@@ -188,14 +190,17 @@ class MyLogger:
             self.logger.error(f"Failed to create log directory: {e}")
             raise
 
-        # 添加一个主日志文件（带轮转和保留策略），记录所有级别日志
+        # 设置日志轮转策略
+        rotation = self.rotation_time or f"{self.max_size} MB"
+
+        # 添加主日志文件
         self.logger.add(
-            os.path.join(self.log_dir, f"{self.file_name}.log"),
-            format=custom_format,
-            level="DEBUG",
-            rotation=f"{self.max_size} MB",
+            os.path.join(self.log_dir, f"{self.file_name}_{self.file_pattern}.log"),
+            format=log_format,
+            level=self.filter_level,
+            rotation=rotation,
             retention=self.retention,
-            compression="zip",
+            compression=self.compression,
             encoding='utf-8',
             enqueue=True,
             diagnose=True,
